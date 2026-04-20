@@ -9,14 +9,14 @@
 3. [Tech Stack](#3-tech-stack)
 4. [Project Structure](#4-project-structure)
 5. [Backend Deep Dive](#5-backend-deep-dive)
-6. [API Reference](#7-api-reference)
-7. [Database Schemas](#8-database-schemas)
-8. [Session Lifecycle](#9-session-lifecycle)
-9. [Deployment](#10-deployment)
-10. [Environment Variables](#11-environment-variables)
-11. [Security](#12-security)
-12. [Testing](#13-testing)
-13. [Airflow Integration](#14-airflow-integration)
+6. [API Reference](#6-api-reference)
+7. [Database Schemas](#7-database-schemas)
+8. [Session Lifecycle](#8-session-lifecycle)
+9. [Deployment](#9-deployment)
+10. [Environment Variables](#10-environment-variables)
+11. [Security](#11-security)
+12. [Testing](#12-testing)
+13. [Airflow Integration](#13-airflow-integration)
 
 ---
 
