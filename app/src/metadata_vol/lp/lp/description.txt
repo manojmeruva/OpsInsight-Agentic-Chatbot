@@ -1,0 +1,49 @@
+**Domain:** Load Forecasting (Power Consumption Analytics)
+**Core Business Rules:**
+- **Forecast Purpose**: Predicts import active power consumption for residential and commercial areas using historical daily profile (KWH-IMPORT) register data since Jan 1st, 2024, leveraging AI-driven LightGBM models.
+- **Table Selection**:
+    - Use `AIS_DM.AGG_LOAD_FORECAST_OFC` for executive summaries, regional performance (department/office), and accuracy metrics (High vs. Low accuracy counts).
+    - Use `AIS_DWH.MVW_FORECAST_RESULTS` for specific day-wise, meter-level predicted values.
+    - Use `AIS_DWH.FACT_MSRMT_DLP` for actual power measurement values.
+- **Meter Uniqueness**: In `AIS_DWH.MVW_FORECAST_RESULTS`, a meter is unique per day. Always use `COUNT(DISTINCT ASSET_NO)` for unique counts.
+- **Accuracy Threshold**: "High Accuracy" is defined as accuracy > 70% (represented by `TOTAL_HIGH_ACCURACY_METERS`). "Low Accuracy" is defined as accuracy < 70% (represented by `TOTAL_LOW_ACCURACY_METERS`).
+
+### 3. MANDATORY SQL CONSTRAINTS (STRICT COMPLIANCE)
+- **Counting Rule**: Never use `COUNT(*)`. Always use `COUNT(DISTINCT ASSET_NO)` for meter counts or specific primary keys like `CASE_ID`.
+- **Ranking & Top-N**: For "Top," "Best," or "Highest," you MUST use a CTE/Subquery with `DENSE_RANK()`.
+- **Outer Query Filter**: The outer query MUST filter by `WHERE rnk = 1` to include ties.
+- **Ordering/Grouping**: Use column sequence numbers only (e.g., `GROUP BY 1, 2`).
+- **Aliasing**: 
+    - Internal (CTEs/Subqueries): Use `snake_case`.
+    - Final Output: Use "Friendly Names with Spaces" in double quotes.
+- **Time Filtering**: Use result table datetime columns (`DATA_TIME` or `MSRMT_DATE_TIME`) for all calendar filters.
+
+### 4. DATABASE SCHEMA & TABLE DEFINITIONS
+**Tables & Grain:**
+| Table Name | Primary Grain / Keys | Description |
+| :--- | :--- | :--- |
+| AGG_LOAD_FORECAST_OFC | DEPARTMENT_CD, OFFICE_CD, EXECUTION_DATE | Aggregated executive table containing load prediction model performance and coverage metrics by office and department. |
+| MVW_FORECAST_RESULTS | ASSET_NO, DATA_TIME | Table capturing day-wise load prediction model outcomes at the individual meter level. |
+| FACT_MSRMT_DLP | METER_SERIAL_NUMBER, MSRMT_DATE_TIME | Table providing actual measurement values for meters. |
+
+**Join Logic:**
+- `AIS_DWH.MVW_FORECAST_RESULTS.ASSET_NO = AIS_DWH.FACT_MSRMT_DLP.METER_SERIAL_NUMBER` AND `DATE(DATA_TIME) = DATE(MSRMT_DATE_TIME)`
+- `AIS_DWH.MVW_FORECAST_RESULTS.ASSET_NO = AIS_DWH.DIM_DVC.MTR_SERIAL_NBR`
+- `AIS_DWH.DIM_DVC.DEVICE_CONFIG_ID = AIS_DWH.DIM_INSTALL_EVT.DVC_CONFIG_ID`
+- `AIS_DWH.DIM_INSTALL_EVT.MDM_SP_ID = AIS_DWH.DIM_SP.MDM_SP_ID`
+- `AIS_DWH.DIM_SP.BILL_CYCLE_CD = AIS_DWH.DIM_BILL_CYC_SCH.D1_BILL_CYC_CD`
+
+### 5. DATA MAPPINGS (COLUMN VALUES)
+| Concept | SQL Filter / Logic |
+| :--- | :--- |
+| Central Region | `LEFT(DEPARTMENT_CD, 1) = '1'` |
+| West Region | `LEFT(DEPARTMENT_CD, 1) = '2'` |
+| East Region | `LEFT(DEPARTMENT_CD, 1) = '3'` |
+| South Region | `LEFT(DEPARTMENT_CD, 1) = '4'` |
+
+### 6. COMPLIANCE CHECKLIST (Self-Correction)
+1. Did I use `COUNT(DISTINCT ASSET_NO)` for meter counts?
+2. Did I use `DENSE_RANK()` for "Top/Highest" queries?
+3. Are final headers in "Friendly Names with Spaces" with double quotes?
+4. Did I use column sequence numbers for `GROUP BY` and `ORDER BY`?
+5. Did I select the correct table (AGG vs. Results) based on regional vs. meter grain?

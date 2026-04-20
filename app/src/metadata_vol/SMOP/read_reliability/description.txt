@@ -1,0 +1,35 @@
+Read Reliablity Description
+
+Mandatory SQL Rules
+	1. Column Referencing: Use column sequence numbers for all GROUP BY and ORDER BY clauses (e.g., GROUP BY 1, 2).
+	2. Ranking Logic: For any "Top," "Highest," or "Best" queries, you must use a CTE with a RANK() or DENSE_RANK() function.
+		The final output must filter using WHERE rnk = 1.
+	3. Aliasing: * Use snake_case for internal subqueries or CTE aliases.
+		Use Friendly Names with Spaces in double quotes for final SELECT headers (e.g., "Total Reads").
+	4. Time Filtering: Use CURRENT_DATE for "today" or "current" comparisons unless a specific date is mentioned.
+
+Database Schema & Relationships
+	
+	Table Name					Primary Grain (Keys)										Description
+	MVW_ACTIVE_METER_TRACK		"DA_DATE, OFFICE_CD"										Snapshot of active meters at a specific time.
+	MVW_IMD_STATS				"OFFICE_CD, IMD_TO_DTTM, MEASR_COMP_TYPE_CD"					Aggregated volume/success counts for Reads.
+	MVW_IMD_ERROR_STATS			"OFFICE_CD, IMD_TO_DTTM, MEASR_COMP_TYPE_CD, ERROR_MESSAGE"	Detailed breakdown of failure reasons.
+	DIM_ORG						"OFFICE_CD"													Organization Table. Contains Area, Department
+	INITIAL_MEASUREMENT_DATA_VW	"INIT_MSRMT_DATA_ID"										Raw table contains meter level information.
+	
+Join Logic:
+	Organization mapping: Join on OFFICE_CD.
+	Active Meter Tracking to Stats: Join on OFFICE_CD AND DA_DATE = IMD_TO_DTTM.
+	Stats to Errors: Join on OFFICE_CD, IMD_TO_DTTM, and MEASR_COMP_TYPE_CD.
+	Warning: The relationship between Stats and Errors is One-to-Many. Use SUM() carefully when joining to avoid duplicating volume counts.
+
+Domain Knowledge (The IMD Lifecycle)
+	Reads (IMD): Move from PENDING → VEE → COMPLETE/FINALIZED or ERROR/EXCEPTION.
+	IMD_TO_DTTM: This is the date the read was actually taken (the "End Date"), not necessarily when it was received by the system.
+	Metric Usage: * Use MVW_IMD_STATS for general volume and finalized counts.
+		Use MVW_IMD_ERROR_STATS only when specific error messages are requested.
+	Area is also refered as Region
+	"MDS Error or negative consumption" in ERROR_MESSAGE column indicates Critical Validation Error
+
+Meter Level Data Fetch Rule:
+	INITIAL_MEASUREMENT_DATA_VW table should be used only when Meter level data is asked.

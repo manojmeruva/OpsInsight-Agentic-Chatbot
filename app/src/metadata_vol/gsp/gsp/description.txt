@@ -1,0 +1,54 @@
+**Domain:** Guarantee Standard Process (GSP)
+**Core Business Rules:**
+*
+* The GSP module monitors service interruptions, restoration, and reconnection efficiency to track customer compensation eligibility.
+* **Outage Correctness**: For outages and compensation eligibility, use the `ELIGIBILITY` column.
+* **Meter Uniqueness**: Result tables contain meter-level outages; count unique meters using `COUNT(DISTINCT METER_SERIAL_NUMBER)`.
+* **Regional Queries**: Join Result tables with Master Data views for questions related to regions, departments, or offices.
+* **Time-Based Filtering**: Always use the datetime column CUT_DTTM from the result tables for any time-series analysis.
+* **Efficiency Formula**: (Success / Total) * 100.
+* **Unplanned Outage Definition**: When a query asks for "Unplanned Outages," you MUST combine results from both GS_UNPLANNED_OUTAGE_RESULT_VW and GS_PLC_METER_RESULT using a UNION ALL or by performing calculations across both tables.
+
+### MANDATORY SQL CONSTRAINTS (STRICT COMPLIANCE)
+* **Counting Rule**: Never use `COUNT(*)`. Always use COUNT(DISTINCT METER_SERIAL_NUMBER) for meter counts. For unique keys like CASE_NUMBER, use COUNT(CASE_NUMBER).
+* **Conditional Outage Filter (Mandatory):** For ANY query targeting GS_PLANNED_OUTAGE_RESULT, GS_UNPLANNED_OUTAGE_RESULT_VW, you MUST include EXCLUSION_REASON != 'No Outage Identified'. Do NOT apply this filter to GS_BLACKOUT_METER_RESULT or GS_PLC_METER_RESULT
+* **Ranking & Top-N**: For "Top," "Best," or "Highest," you MUST use a CTE/Subquery with `DENSE_RANK()`.
+* **Outer Query Filter**: The outer query MUST filter by `WHERE rnk = 1` to include ties.
+* **Ordering/Grouping**: Use column sequence numbers only (e.g., `GROUP BY 1, 2`).
+* **Aliasing**: 
+    * Internal (CTEs/Subqueries): Use `snake_case`.
+    * Final Output: Use "Friendly Names with Spaces" in double quotes.
+* **Time Filtering**: Use result table datetime columns for all calendar filters.
+
+### DATABASE SCHEMA & TABLE DEFINITIONS
+
+**Tables & Grain:**
+| Table Name | Primary Grain / Keys | Description |
+| :--- | :--- | :--- |
+| ACTIVE_METERS_MASTER_DATA_VW | METER_SERIAL_NUMBER | Master data mapping for blackout meters |
+| GS_BLACKOUT_METER_RESULT | METER_SERIAL_NUMBER, CUT_DTTM | Blackout meter outage results |
+| GS_PLANNED_OUTAGE_RESULT | TICKET_ID, CASE_NUMBER, METER_SERIAL_NUMBER, PLANNED_OUTAGE_START_DATETIME | Planned outage results with ticket information |
+| GS_PLC_METER_RESULT | METER_SERIAL_NUMBER, CUT_DTTM | Power Line Communication meter outage results |
+| GS_UNPLANNED_OUTAGE_RESULT_VW | METER_SERIAL_NUMBER, CUT_DTTM, DATA_SOURCE_IND, TICKET_NUMBER | Unplanned outage results with ticket and meter info |
+
+**Join Logic:**
+1. Joining condition between Result tables (T1) and Active Meters master Data table (T2): T1.METER_SERIAL_NUMBER = T2.METER_SERIAL_NUMBER
+
+### DATA MAPPINGS (COLUMN VALUES)
+| Concept | SQL Filter / Column Value |
+| :--- | :--- |
+| Excluded from Compensation / False Alert | `ELIGIBLITY = 'NO'` |
+| Eligible for Compensation | `ELIGIBLITY = 'YES'` |
+| Missing Ticket | `TICKET_NUMBER LIKE '%INS%'` |
+| No Identified Outage | `EXCLUSION_REASON = 'No Outage Identified'` |
+| IFS Remarks | `EXCLUSION_REASON LIKE 'IFS_REMARKS%'` |
+| Head End System (HES)| NARI, SCH (Schneider)|
+
+
+
+### COMPLIANCE CHECKLIST (Self-Correction)
+1. Did I use the mandatory `COUNT(DISTINCT...)` function?
+2. Did I use `DENSE_RANK()` for a "Top" query?
+3. Are final headers in double quotes with spaces?
+4. Did I use `GROUP BY 1, 2`?
+5. Did I join results with master views for regional questions?

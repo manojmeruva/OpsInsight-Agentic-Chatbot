@@ -1,0 +1,51 @@
+**Core Domain Logic:**
+- MRO Identification: Use COUNT(DISTINCT D1_USAGE_ID) for all counts of Usage Requests/MROs.
+- BILL_CYCLE_CD Hint: A unique identifier for a predefined "Billing Batch/Bucket" of customers whose meters are read and billed simultaneously.
+- Efficiency Metric: 
+	- Success: USAGE_STATUS_CD IN ('SENT', 'ACKRECEIVED')
+	- Failure: USAGE_STATUS_CD = 'DISCARDED'
+- Billing Efficiency Definition: This is the success rate of all MROs (Meter Reading Orders) generated for specific billing batches/cycles
+	- Efficiency formula: (count of distinct success MROs* 100)/(total count of distinct MROs)
+- Billing Cycle Stages:
+	- Pending: Current Date < WINDOW_START_DT.
+	- Active: Current Date between WINDOW_START_DT and WINDOW_START_DT + 4 days.
+	- Finalized/Closed: Current Date > WINDOW_START_DT + 4 days (matches WINDOW_END_DT).
+	
+- Sub Domain: Missing Read Notifications & Work Orders
+	Description: When a Billing Request, MRO, or Usage Request fails, it triggers a "Missing Read Notification" activity.
+	Key Identifiers & Filtering: 
+		- Activity Type: Missing Read Notification activities are identified by ACTIVITY_TYPE_CD = 'CM-MISSING-MTR-RD'
+		- Communication Object: Responses from the SMOC team are stored with COMMUNICATION_OBJECT = 'CM-MissingMtrRdNtf'.
+		- Table Mapping: Work order details are stored in the FACT_COMMUNICATION table.
+	Business Logic: Status Categorization: 
+		- Completed by Probe: WO_DESCR_CD = 2139 AND WO_STATUS = 'COMP'
+		- Completed by FT (Field Technician): WO_DESCR_CD = 2140 AND WO_STATUS = 'COMP'.
+		- Completed Remotely: WO_DESCR_CD = 2141 AND WO_STATUS = 'COMP'.
+		- Failed Work Order: WO_STATUS = 'FAILED'.
+		- In Progress Notification: STATUS = 'COMMINPROG'.
+	  
+	
+	
+**Strict Query Construction Rules:**
+- Temporal Filtering (Mandatory)
+	- Rule: If the user query mentions a specific month or year (e.g., "Jan 2026"), you MUST use MRO_MONTH and MRO_YEAR.
+	- Forbidden: Do not use WINDOW_START_DT or WINDOW_END_DT for calendar month/year filtering.
+	- Correct Syntax: WHERE MRO_MONTH = 1 AND MRO_YEAR = 2026
+	- When no date is provided then consider current month in filter criteria
+	- When no year is provided then consider current year in filter criteria
+	- Date Comparison Rule: Use CURRENT_DATE for all "current" or "today" comparisons (e.g., active billing cycles, pending cycles). Do not use CURRENT_TIMESTAMP unless specific hour/minute precision is requested.	
+- Logic constraints
+	- WINDOW_START_DT is restricted to calculating "Cycle Stages" (Pending/Active) or identifying "Periodic" vs "Off-Cycle" requests
+- Ordering & Grouping
+	- Rule: Use column sequence numbers for all GROUP BY and ORDER BY clauses.
+	- Example: SELECT AREA_DESCRIPTION, COUNT(DISTINCT D1_USAGE_ID) FROM ... GROUP BY 1 ORDER BY 2 DESC
+
+- Tie-Breaking & Ranking
+	- Rule: For "top," "best," or "highest," use RANK() or DENSE_RANK() in a subquery.	
+	- Requirement: The final filter must be WHERE rnk = 1 to ensure all tied entities are displayed.
+- Aliasing & Formatting
+	- Internal Aliases: Use underscores (e.g., success_count) in subqueries.
+	- External Aliases: Use user-friendly names with spaces and double quotes (e.g., "Total Success Count") only in the final SELECT.
+- String Matching Rule:
+	- When filtering by DEPARTMENT_DESCRIPTION, OFFICE_DESCRIPTION, or AREA_DESCRIPTION, always use the LIKE operator with wildcards (%) and TRIM(UPPER(...)) to ensure case-insensitive partial matching.
+		Example: WHERE TRIM(UPPER(DEPARTMENT_DESCRIPTION)) LIKE '%KHARJ%'

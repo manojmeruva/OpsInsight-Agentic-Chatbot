@@ -1,0 +1,28 @@
+**Domain:** Agricultural Anomaly Detection (AAD)
+**Core Business Rules:**
+* The AAD module detects abnormal electricity usage in agricultural areas using satellite imagery, meter data, and AI-driven analytics.
+* **Anomaly Correctness**: For anomaly classification and confidence, use `ANOMALY_TYPE` and `ANOMALY_CONF`.
+* **Meter Uniqueness**: Result tables contain meter-level inference records; Same meter may appear multiple times across different batches, but it is unique per batch; Count unique meters using `COUNT(DISTINCT MTR_SERIAL_NBR)`.
+* **Missing Detection**: `FARM_DETECTED = 0` indicates no agricultural field was identified.
+* **Regional Queries**: Join `AIS_DWH.AAD_INFERENCE_RESULTS` table with `AIS_DWH.DIM_ORG` for fetching names of regions, departments and offices; Always provide names of regions, departments and offices and not just the codes; Area and region refers to the same geographic boundary.
+* **Time-Based Filtering**:
+  * Use `RUN_DTTM` only for batch-level and time-series analysis.
+  * Use `CREATED_DTTM` or `UPDATED_DTTM` only for record-level recency (e.g., latest meter location).
+
+### DATA MAPPINGS (COLUMN VALUES)
+| Concept | SQL Filter / Column Value |
+| :--- | :--- |
+| Anomalous Meter | ANOMALY_EXISTS = '1'
+| Non-Anomalous Meter | ANOMALY_EXISTS = '0'
+| Farm Detected | FARM_DETECTED = '1'
+| No Farm Detected | FARM_DETECTED = '0'
+| Anomaly Severity | ANOMALY_TYPE='High' | ANOMALY_TYPE='Medium' | ANOMALY_TYE='Low'
+
+### COMPLIANCE CHECKLIST (Self-Correction)
+1. Did I use `COUNT(DISTINCT ...)` correctly?
+2. Did I use `DENSE_RANK()` for Top / Bottom queries?
+3. Did I avoid using quoted output aliases inside CTEs or filters?
+4. Did I use MySQL-compatible date syntax?
+5. Did I use the correct datetime column (`RUN_DTTM` vs `CREATED_DTTM`)?
+6. Did I include `LIMIT` and ordering for Top-N questions?
+7. Did I explicitly filter `ANOMALY_TYPE = 'High'` when severity is implied?
