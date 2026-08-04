@@ -6,23 +6,23 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Set the working directory inside the container
-WORKDIR /impressa-interact-backend
+WORKDIR /agentic-designed-chatbot
 
 # Copy the requirements file and install dependencies
-COPY app/src/requirements.txt /impressa-interact-backend/requirements.txt
+COPY app/src/requirements.txt /agentic-designed-chatbot/requirements.txt
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire application code from the src directory to /app
-COPY app/src/ /impressa-interact-backend
+COPY app/src/ /agentic-designed-chatbot
 
 # Copy the local llm.db to the container
-# COPY LLM_Testing.db /impressa-flask-backend/LLM_Testing.db
+# COPY LLM_Testing.db /agentic-designed-chatbot/LLM_Testing.db
 
 
 
 # Set the DB_PATH environment variable to point to the database file in the volume
-# ENV DB_PATH="/impressa-flask-backend/LLM_Testing.db"
+# ENV DB_PATH="/agentic-designed-chatbot/LLM_Testing.db"
 
 # (Optional) Set other environment variables; these can be overridden at runtime
 ENV TOGETHER_API_KEY=""

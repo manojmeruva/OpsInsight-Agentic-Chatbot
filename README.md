@@ -31,7 +31,7 @@
 - **Multi-language support** — Bidirectional English-Arabic translation.
 - **Voice input** — Speech-to-text transcription via Gemini.
 - **Session archival** — Hot storage in MongoDB with long-term archival to Elasticsearch.
-- **Multi-module support** — SMOP, ELOSS, GSP, TLMS, SAATD, FTEMS, RBA, SPLM, LD, LP domains.
+- **Multi-module support** — Electricity Domain Sector
 - **Feedback collection** — Like/dislike reactions and text feedback on every response.
 
 ---
@@ -607,7 +607,7 @@ Testing endpoint for domain classification. Returns the tag assigned by Gemini.
   "module_name": "SMOP",
   "history": [],
   "test": true,
-  "tag_list": ["billing_efficiency", "RCRDC", "read_reliability"],
+  "tag_list": List[Domains],
   "system_domain_prompt": "..."
 }
 ```
@@ -634,7 +634,7 @@ Testing endpoint for domain classification. Returns the tag assigned by Gemini.
 | session_id | string | Unique session identifier |
 | user_email | string | User's email address |
 | session_name | string | First user query (auto-set) |
-| module_name | string | Module code (SMOP, TLMS, etc.) |
+| module_name | string | Module code (Electricity Sector Domains) |
 | avg_response_time | float | Average LLM response time |
 | query_exec_time | float | Average query execution time |
 | created_at | datetime | Session creation timestamp |
@@ -938,7 +938,7 @@ curl -X POST http://localhost:5000/SQL-Chatbot-backend/api/auto-test-tag \
     "user_input": "What is energy loss?",
     "module_name": "SMOP",
     "test": true,
-    "tag_list": ["billing_efficiency", "RCRDC"]
+    "tag_list": List[Domains]
   }'
 ```
 

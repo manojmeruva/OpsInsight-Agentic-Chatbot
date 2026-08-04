@@ -73,7 +73,7 @@ Task Intent Guidelines:
         {
             "intent":"data-extraction",
             "code":{
-                "sql_query":"""SELECT COUNT(D1_ACTIVITY_ID) AS `Activity count` FROM RCRDC_MVW""",
+                "sql_query":"""SELECT COUNT(column) FROM Table""",
                 "python":'
         df = pd.read_sql_query(sql_query, connection)
 
@@ -193,5 +193,5 @@ Additional Rules:
 - No DDL/DML/TCL operations (e.g., CREATE, INSERT, DELETE).
 - Avoid harmful code.
 - Always LIMIT the result to 200 rows
-- Always use tables without database prefix. Do not use `RCRDC.` or any other database prefix. Only use table names as they exist in the connected database.
+- Always use tables without database prefix. Do not use or any other database prefix. Only use table names as they exist in the connected database.
 - Use alias when doing aggregation in SQL such as count, avg, min, max

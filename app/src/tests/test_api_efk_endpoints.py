@@ -30,7 +30,7 @@ class TestLoadSessionHistoryEndpoint:
 
         response = test_client.post(
             "/api/load-session-history",
-            json={"user_email": "test@impresa.com", "days": 7},
+            json={"user_email": "test@agentic-designed-chatbot.com", "days": 7},
         )
 
         assert response.status_code == 200
@@ -39,7 +39,7 @@ class TestLoadSessionHistoryEndpoint:
         assert data["sessions_loaded"] == 3
         assert data["messages_loaded"] == 15
         mock_sm.load_session_history_from_es.assert_called_once_with(
-            user_email="test@impresa.com", days=7
+            user_email="test@agentic-designed-chatbot.com", days=7
         )
 
     def test_skipped_when_es_unavailable(self, client):
@@ -53,7 +53,7 @@ class TestLoadSessionHistoryEndpoint:
 
         response = test_client.post(
             "/api/load-session-history",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         assert response.status_code == 200
@@ -67,11 +67,11 @@ class TestLoadSessionHistoryEndpoint:
 
         test_client.post(
             "/api/load-session-history",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         mock_sm.load_session_history_from_es.assert_called_once_with(
-            user_email="test@impresa.com", days=7
+            user_email="test@agentic-designed-chatbot.com", days=7
         )
 
     def test_custom_days_parameter(self, client):
@@ -82,11 +82,11 @@ class TestLoadSessionHistoryEndpoint:
 
         test_client.post(
             "/api/load-session-history",
-            json={"user_email": "test@impresa.com", "days": 30},
+            json={"user_email": "test@agentic-designed-chatbot.com", "days": 30},
         )
 
         mock_sm.load_session_history_from_es.assert_called_once_with(
-            user_email="test@impresa.com", days=30
+            user_email="test@agentic-designed-chatbot.com", days=30
         )
 
     def test_missing_user_email_returns_422(self, client):
@@ -105,7 +105,7 @@ class TestLoadSessionHistoryEndpoint:
 
         response = test_client.post(
             "/api/load-session-history",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         assert response.status_code == 500
@@ -127,7 +127,7 @@ class TestArchiveSessionDataEndpoint:
 
         response = test_client.post(
             "/api/archive-session-data",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         assert response.status_code == 200
@@ -137,7 +137,7 @@ class TestArchiveSessionDataEndpoint:
         assert data["messages_archived"] == 42
         assert data["messages_cleaned_from_mongo"] == 42
         mock_sm.archive_session_data_to_es.assert_called_once_with(
-            user_email="test@impresa.com"
+            user_email="test@agentic-designed-chatbot.com"
         )
 
     def test_skipped_when_es_unavailable(self, client):
@@ -151,7 +151,7 @@ class TestArchiveSessionDataEndpoint:
 
         response = test_client.post(
             "/api/archive-session-data",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         assert response.status_code == 200
@@ -173,7 +173,7 @@ class TestArchiveSessionDataEndpoint:
 
         response = test_client.post(
             "/api/archive-session-data",
-            json={"user_email": "test@impresa.com"},
+            json={"user_email": "test@agentic-designed-chatbot.com"},
         )
 
         assert response.status_code == 500

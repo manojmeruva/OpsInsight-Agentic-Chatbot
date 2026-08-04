@@ -23,7 +23,7 @@ class TestLoadSessionHistoryFromES:
     def test_skipped_when_es_unavailable(self):
         manager, _, _ = self._create_manager(es_available=False)
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "skipped"
         assert result["sessions_loaded"] == 0
@@ -32,7 +32,7 @@ class TestLoadSessionHistoryFromES:
         manager, _, mock_es = self._create_manager()
         mock_es.get_user_sessions_last_n_days.return_value = []
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "success"
         assert result["sessions_loaded"] == 0
@@ -42,7 +42,7 @@ class TestLoadSessionHistoryFromES:
         manager, mock_repo, mock_es = self._create_manager()
 
         mock_es.get_user_sessions_last_n_days.return_value = [
-            {"session_id": "s1", "user_email": "test@impresa.com",
+            {"session_id": "s1", "user_email": "test@agentic-designed-chatbot.com",
              "created_at": "2026-02-20T10:00:00", "last_updated": "2026-02-20T10:00:00"},
         ]
         mock_es.get_messages_by_session_ids.return_value = [
@@ -55,7 +55,7 @@ class TestLoadSessionHistoryFromES:
         mock_messages_coll.find.return_value.limit.return_value = []
         mock_repo.get_messages_collection.return_value = mock_messages_coll
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "success"
         assert result["sessions_loaded"] == 1
@@ -67,14 +67,14 @@ class TestLoadSessionHistoryFromES:
         manager, mock_repo, mock_es = self._create_manager()
 
         mock_es.get_user_sessions_last_n_days.return_value = [
-            {"session_id": "s1", "user_email": "test@impresa.com",
+            {"session_id": "s1", "user_email": "test@agentic-designed-chatbot.com",
              "created_at": "2026-02-20T10:00:00", "last_updated": "2026-02-20T10:00:00"},
         ]
         mock_es.get_messages_by_session_ids.return_value = []
         # Session already exists in MongoDB
         mock_repo.get_by_id.return_value = {"session_id": "s1"}
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["sessions_loaded"] == 0
         mock_repo.create.assert_not_called()
@@ -83,7 +83,7 @@ class TestLoadSessionHistoryFromES:
         manager, mock_repo, mock_es = self._create_manager()
 
         mock_es.get_user_sessions_last_n_days.return_value = [
-            {"session_id": "s1", "user_email": "test@impresa.com",
+            {"session_id": "s1", "user_email": "test@agentic-designed-chatbot.com",
              "created_at": "2026-02-20T10:00:00", "last_updated": "2026-02-20T10:00:00"},
         ]
         mock_es.get_messages_by_session_ids.return_value = [
@@ -95,7 +95,7 @@ class TestLoadSessionHistoryFromES:
         mock_messages_coll.find.return_value.limit.return_value = [{"_id": "existing"}]
         mock_repo.get_messages_collection.return_value = mock_messages_coll
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["messages_loaded"] == 0
         mock_repo.add_message.assert_not_called()
@@ -104,7 +104,7 @@ class TestLoadSessionHistoryFromES:
         manager, _, mock_es = self._create_manager()
         mock_es.get_user_sessions_last_n_days.side_effect = Exception("ES query failed")
 
-        result = manager.load_session_history_from_es("test@impresa.com")
+        result = manager.load_session_history_from_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "error"
         assert "ES query failed" in result["reason"]
@@ -130,7 +130,7 @@ class TestArchiveSessionDataToES:
     def test_skipped_when_es_unavailable(self):
         manager, _, _ = self._create_manager(es_available=False)
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "skipped"
         assert result["sessions_archived"] == 0
@@ -139,7 +139,7 @@ class TestArchiveSessionDataToES:
         manager, mock_repo, _ = self._create_manager()
         mock_repo.get_all_sessions.return_value = []
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "success"
         assert result["sessions_archived"] == 0
@@ -168,7 +168,7 @@ class TestArchiveSessionDataToES:
         mock_messages_coll.delete_many.return_value = mock_delete_result
         mock_repo.get_messages_collection.return_value = mock_messages_coll
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "success"
         assert result["sessions_archived"] == 2
@@ -191,7 +191,7 @@ class TestArchiveSessionDataToES:
         mock_messages_coll.delete_many.return_value = mock_delete_result
         mock_repo.get_messages_collection.return_value = mock_messages_coll
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         # Verify messages deleted from MongoDB
         mock_messages_coll.delete_many.assert_called_once_with({"session_id": "s1"})
@@ -203,7 +203,7 @@ class TestArchiveSessionDataToES:
         manager, mock_repo, mock_es = self._create_manager()
         mock_repo.get_all_sessions.side_effect = Exception("MongoDB connection lost")
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "error"
         assert "MongoDB connection lost" in result["reason"]
@@ -212,6 +212,6 @@ class TestArchiveSessionDataToES:
         manager, _, _ = self._create_manager()
         manager.es_repo = None
 
-        result = manager.archive_session_data_to_es("test@impresa.com")
+        result = manager.archive_session_data_to_es("test@agentic-designed-chatbot.com")
 
         assert result["status"] == "skipped"

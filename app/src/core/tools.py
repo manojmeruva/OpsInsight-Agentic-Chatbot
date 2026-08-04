@@ -22,8 +22,7 @@ from .models import Cgen
 
 
 BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
-SMART_OPS_PATH = os.path.join(BASE_DIR, "Smart_meter_operations.txt")
-RBA_PATH       = os.path.join(BASE_DIR, "rba.txt")
+Electricity_Domain_Sector_PATH = os.path.join(BASE_DIR, "Electricity_Domain_Sector.txt")
 
 
 # ==============================================================================
@@ -143,15 +142,10 @@ def get_context_from_rag(user_input: str) -> tuple[str, dict]:
         lowered = user_input.lower()
         t0      = time.time()
 
-        if any(k in lowered for k in ("billing", "rcrdc", "efficiency")):
-            with open(SMART_OPS_PATH, "r") as f:
+        if any(k in lowered for k in domains):
+            with open(Electricity_Domain_Sector_PATH, "r") as f:
                 content = f.read()
-        elif "rba" in lowered:
-            with open(RBA_PATH, "r") as f:
-                content = f.read()
-        else:
-            with open(SMART_OPS_PATH, "r") as f:
-                content = f.read()
+    
 
         timing = {"function": "get_context_from_rag", "time": time.time() - t0, "children": []}
         return content, timing

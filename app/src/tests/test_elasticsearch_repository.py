@@ -41,13 +41,13 @@ class TestGetUserSessions:
         mock_es_client.search.return_value = {
             "hits": {
                 "hits": [
-                    {"_source": {"session_id": "s1", "user_email": "test@impresa.com"}},
-                    {"_source": {"session_id": "s2", "user_email": "test@impresa.com"}},
+                    {"_source": {"session_id": "s1", "user_email": "test@agentic-designed-chatbot.com"}},
+                    {"_source": {"session_id": "s2", "user_email": "test@agentic-designed-chatbot.com"}},
                 ]
             }
         }
 
-        result = es_repo.get_user_sessions_last_n_days("test@impresa.com", days=7)
+        result = es_repo.get_user_sessions_last_n_days("test@agentic-designed-chatbot.com", days=7)
 
         assert len(result) == 2
         assert result[0]["session_id"] == "s1"
@@ -56,7 +56,7 @@ class TestGetUserSessions:
     def test_returns_empty_when_no_hits(self, es_repo, mock_es_client):
         mock_es_client.search.return_value = {"hits": {"hits": []}}
 
-        result = es_repo.get_user_sessions_last_n_days("nobody@impresa.com", days=7)
+        result = es_repo.get_user_sessions_last_n_days("nobody@agentic-designed-chatbot.com", days=7)
 
         assert result == []
 
@@ -96,7 +96,7 @@ class TestBulkIndexSessions:
             {
                 "_id": "mongo_id_1",
                 "session_id": "s1",
-                "user_email": "test@impresa.com",
+                "user_email": "test@agentic-designed-chatbot.com",
                 "created_at": datetime(2026, 2, 20),
                 "last_updated": datetime(2026, 2, 21),
                 "chat_history": [],
@@ -104,7 +104,7 @@ class TestBulkIndexSessions:
             {
                 "_id": "mongo_id_2",
                 "session_id": "s2",
-                "user_email": "test@impresa.com",
+                "user_email": "test@agentic-designed-chatbot.com",
                 "created_at": datetime(2026, 2, 19),
                 "last_updated": datetime(2026, 2, 20),
                 "chat_history": [],
@@ -129,7 +129,7 @@ class TestBulkIndexSessions:
         sessions = [
             {
                 "session_id": "s1",
-                "user_email": "test@impresa.com",
+                "user_email": "test@agentic-designed-chatbot.com",
                 "created_at": datetime(2026, 2, 20),
                 "last_updated": datetime(2026, 2, 21),
                 "chat_history": [
