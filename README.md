@@ -337,7 +337,7 @@ Manages the lifecycle of chat sessions:
 Synchronizes metadata from StarRocks data warehouse to local SQLite (`metadata.db`):
 
 ```
-StarRocks (AIS_DWH)           SQLite (metadata.db)
+StarRocks ()           SQLite (metadata.db)
 +------------------+          +------------------+
 | modules          |  -----> | modules          |
 | domains          |  -----> | domains          |
@@ -705,7 +705,7 @@ Local cache of metadata from StarRocks. Tables:
 - **relationships** — `id`, `domain_id`, `name`, `from_entity_id`, `to_entity_id`, `relationship_type`, `description`
 - **faqs** — `id`, `FAQ`, `SQL`, `Tag`
 
-### 7.4 StarRocks (AIS_DWH)
+### 7.4 StarRocks ()
 
 The source-of-truth data warehouse containing:
 
@@ -817,11 +817,11 @@ CMD ["python", "main.py"]
 | `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | `utils/Secrets/gemini-sa.json` |
 | `MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017/` |
 | `DB_NAME` | MongoDB database name | `chat_session_db` |
-| `STARROCKS_IP` | StarRocks host | `144.24.132.143` |
+| `STARROCKS_IP` | StarRocks host | `0.0.0.0` |
 | `STARROCKS_PORT` | StarRocks port | `9030` |
-| `STARROCKS_USER` | StarRocks user | `aissys` |
+| `STARROCKS_USER` | StarRocks user | `root |
 | `STARROCKS_PASSWORD` | StarRocks password | *(empty or set)* |
-| `STARROCKS_DB` | StarRocks database | `AIS_DWH` |
+| `STARROCKS_DB` | StarRocks database | `table` |
 | `ES_HOST` | Elasticsearch host | `localhost` |
 | `ES_PORT` | Elasticsearch port | `9200` |
 | `ES_USERNAME` | ES basic auth user | *(optional)* |
