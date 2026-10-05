@@ -7,6 +7,7 @@ Tool logic lives in tools.py. LLM construction in llm_factory.py.
 
 import re
 import time
+import asyncio
 import json
 import base64
 import logging
@@ -14,9 +15,9 @@ import traceback
 from typing import List
 
 from fastapi import HTTPException
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage, message_chunk_to_message
 
-from prompts.sys_domain_prompt import generate_smart_meter_prompt, generate_sys_domain_test_prompt
+from prompts.sys_domain_prompt import generate_domain_prompt, generate_sys_domain_test_prompt
 from .llm_factory import get_llm, get_codegen_llm
 from .tools import build_tools
 
@@ -26,7 +27,7 @@ ARABIC_PATTERN = re.compile(
 )
 
 FALLBACK_MSG = (
-    "We acknowledge your question. Energon is in the training phase, "
+    "We acknowledge your question. OpsInsight is still learning this type of request, "
     "and the response will be available soon."
 )
 
@@ -60,7 +61,7 @@ class MultiTurnConversation:
                 system_domain_prompt=sys_test_prompt, list_of_domains=tag_list
             )
         else:
-            instance.sys_instruction = await generate_smart_meter_prompt(
+            instance.sys_instruction = await generate_domain_prompt(
                 module_name=module_name
             )
         instance.module_name = module_name
@@ -97,12 +98,82 @@ class MultiTurnConversation:
     # ── Translation helpers ───────────────────────────────────────────────────
 
 
+    # ── Streaming helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _text_of(content) -> str:
+        """Extract plain text from an AIMessage / chunk content (str or list of blocks)."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(
+                item.get("text", "") if isinstance(item, dict) and item.get("type") == "text"
+                else item if isinstance(item, str) else ""
+                for item in content
+            )
+        return ""
+
+    async def _stream_llm(self, llm, parts: list, stream_text: bool):
+        """
+        Stream one LLM call. Yields ("event", ...) tuples for text deltas and
+        finally ("message", AIMessage) with the aggregated response.
+        """
+        full  = None
+        index = len(parts)
+        async for chunk in llm.astream(self.message_history):
+            full = chunk if full is None else full + chunk
+            delta = self._text_of(chunk.content)
+            if stream_text and delta:
+                yield "event", {"event": "delta", "data": {"index": index, "text": delta}}
+        message = message_chunk_to_message(full) if full is not None else AIMessage(content="")
+        yield "message", message
+
+    @staticmethod
+    async def _run_with_status(coro, status_queue: asyncio.Queue):
+        """Run *coro* while relaying status events it puts on *status_queue*."""
+        task = asyncio.create_task(coro)
+        while True:
+            getter = asyncio.create_task(status_queue.get())
+            done, _ = await asyncio.wait({task, getter}, return_when=asyncio.FIRST_COMPLETED)
+            if getter in done:
+                yield "event", {"event": "status", "data": getter.result()}
+                continue
+            getter.cancel()
+            break
+        while not status_queue.empty():
+            yield "event", {"event": "status", "data": status_queue.get_nowait()}
+        yield "result", task.result()   # re-raises tool exceptions
+
+    @staticmethod
+    def _status(stage: str, message: str) -> dict:
+        return {"event": "status", "data": {"stage": stage, "message": message}}
+
+    @staticmethod
+    def _part(parts: list, part: dict) -> dict:
+        parts.append(part)
+        return {"event": "part", "data": {"index": len(parts) - 1, "part": part}}
+
     # ── chat() ────────────────────────────────────────────────────────────────
 
     async def chat(self, user_input: str) -> list[dict]:
+        """Non-streaming wrapper: collects the parts produced by chat_stream()."""
+        output_content = []
+        async for event in self.chat_stream(user_input, stream_text=False):
+            if event["event"] == "part":
+                output_content.append(event["data"]["part"])
+        return output_content
+
+    async def chat_stream(self, user_input: str, stream_text: bool = True):
+        """
+        Async generator of UI events:
+            {"event": "status", "data": {"stage", "message"}}
+            {"event": "delta",  "data": {"index", "text"}}      (only if stream_text)
+            {"event": "part",   "data": {"index", "part"}}      (final content of a part)
+            {"event": "sql",    "data": {"sql"}}
+        """
         self.timing_data   = []
         self.error_message = None
-        output_content     = []
+        parts: list        = []
 
         try:
             logging.info(f"User Query: {user_input}")
@@ -110,14 +181,13 @@ class MultiTurnConversation:
             # Per-request mutable state passed into tools via closure
             timing_data          = self.timing_data
             last_generated_code  = []          # mutable ref — tools write, we read back
+            status_queue         = asyncio.Queue()
             history_string = ""
             count = 1
-            
+
             for conv in self.conversations:
-                
-                history_string += f"{count}. User : {conv.get('user_input',"")}\n"
+                history_string += f"{count}. User : {conv.get('user_input', '')}\n"
                 count += 1
-                print(f"Captured: {conv.get('user_input',"")}")
 
             # Return the final string (or a default message if empty)
             conv_history = history_string.strip() if history_string else "No previous history found."
@@ -130,6 +200,7 @@ class MultiTurnConversation:
                 current_time=self.current_time,
                 timing_data=timing_data,
                 last_generated_code=last_generated_code,
+                on_status=status_queue.put_nowait,
             )
 
             # Bind tools to LLM for this turn
@@ -138,11 +209,16 @@ class MultiTurnConversation:
             # 1. Append user message
             self.message_history.append(HumanMessage(content=user_input))
 
-            # ── First LLM call ────────────────────────────────────────────
-            t0       = time.time()
-            response: AIMessage = llm.invoke(self.message_history)
-            duration = time.time() - t0
-            timing_1 = {"function": "llm_call_1", "time": duration, "children": []}
+            # ── First LLM call (streamed) ─────────────────────────────────
+            yield self._status("thinking", "Understanding your question…")
+            t0 = time.time()
+            response: AIMessage = None
+            async for kind, value in self._stream_llm(llm, parts, stream_text):
+                if kind == "event":
+                    yield value
+                else:
+                    response = value
+            timing_1 = {"function": "llm_call_1", "time": time.time() - t0, "children": []}
 
             self.message_history.append(response)
             logging.info(f"First LLM response: {response}")
@@ -150,16 +226,9 @@ class MultiTurnConversation:
             # ── No tool call → plain text ─────────────────────────────────
             if not response.tool_calls:
                 self.timing_data.append(timing_1)
-                content = response.content
-                if isinstance(content, str):
-                    output_content.append({"type": "text", "content": content})
-                elif isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict) and item.get("type") == "text":
-                            output_content.append({"type": "text", "content": item.get("text", "")})
-                        elif isinstance(item, str):
-                            output_content.append({"type": "text", "content": item})
-                return output_content
+                text = self._text_of(response.content)
+                yield self._part(parts, {"type": "text", "content": text or FALLBACK_MSG})
+                return
 
             # ── Tool call ─────────────────────────────────────────────────
             tool_call    = response.tool_calls[0]
@@ -169,33 +238,40 @@ class MultiTurnConversation:
 
             # ── RAG branch ────────────────────────────────────────────────
             if tool_name == "get_context_from_rag":
-                rag_result = rag_tool.invoke({})
+                yield self._status("retrieving", "Looking up the business glossary…")
+                rag_result = await asyncio.to_thread(rag_tool.invoke, {})
                 self.message_history.append(
                     ToolMessage(content=str(rag_result), tool_call_id=tool_call_id)
                 )
 
-                t2             = time.time()
-                final_response = llm.invoke(self.message_history)
+                yield self._status("writing", "Writing the answer…")
+                t2 = time.time()
+                final_response = None
+                async for kind, value in self._stream_llm(llm, parts, stream_text):
+                    if kind == "event":
+                        yield value
+                    else:
+                        final_response = value
                 self.message_history.append(final_response)
                 timing_2 = {"function": "llm_call_2", "time": time.time() - t2, "children": []}
                 self.timing_data.extend([timing_1, timing_2])
 
-                content = final_response.content
-                if isinstance(content, str):
-                    output_content.append({"type": "text", "content": content})
-                elif isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict) and item.get("type") == "text":
-                            output_content.append({"type": "text", "content": item.get("text", "")})
-                return output_content
+                text = self._text_of(final_response.content)
+                yield self._part(parts, {"type": "text", "content": text or FALLBACK_MSG})
+                return
 
             # ── SQL / Plotting branch (with retries) ──────────────────────
             if tool_name == "get_data_from_sql":
                 final_execution_success = False
+                tool_result: dict = None
 
                 for attempt in range(MAX_RETRIES):
                     try:
-                        tool_result: dict = await sql_tool.ainvoke({})
+                        async for kind, value in self._run_with_status(sql_tool.ainvoke({}), status_queue):
+                            if kind == "event":
+                                yield value
+                            else:
+                                tool_result = value
                         final_execution_success = True
                         break
 
@@ -205,6 +281,7 @@ class MultiTurnConversation:
                         logging.error(f"Execution failed attempt {attempt + 1}: {error_tb}")
 
                         if attempt < MAX_RETRIES - 1:
+                            yield self._status("retrying", "Query failed — correcting and retrying…")
                             self.message_history.append(
                                 ToolMessage(
                                     content=json.dumps({
@@ -217,24 +294,26 @@ class MultiTurnConversation:
                                     tool_call_id=tool_call_id,
                                 )
                             )
-                            correction: AIMessage = llm.invoke(self.message_history)
+                            correction: AIMessage = await llm.ainvoke(self.message_history)
                             self.message_history.append(correction)
 
                             if not correction.tool_calls:
-                                content = correction.content
-                                if isinstance(content, str):
-                                    output_content.append({"type": "text", "content": content})
+                                text = self._text_of(correction.content)
+                                if text:
+                                    yield self._part(parts, {"type": "text", "content": text})
                                 break
 
                             tool_call    = correction.tool_calls[0]
                             tool_call_id = tool_call["id"]
                         else:
-                            output_content.append({"type": "text", "content": FALLBACK_MSG})
+                            yield self._part(parts, {"type": "text", "content": FALLBACK_MSG})
                             self.timing_data.append(timing_1)
-                            return output_content
+                            return
 
                 if final_execution_success:
                     self.last_generated_code = last_generated_code[0] if last_generated_code else None
+                    if self.last_generated_code and self.last_generated_code.sql_query:
+                        yield {"event": "sql", "data": {"sql": self.last_generated_code.sql_query}}
 
                     function_output_parts = tool_result["output"]
                     intent                = tool_result["intent"]
@@ -250,47 +329,31 @@ class MultiTurnConversation:
                         )
                     )
 
-                    if intent == "data-extraction":
+                    if intent in ("data-extraction", "plotting"):
                         for part in function_output_parts:
-                            if isinstance(part, list):
-                                output_content.append({"type": "table", "content": part})
+                            if isinstance(part, list) and intent == "data-extraction":
+                                yield self._part(parts, {"type": "table", "content": part})
                             elif isinstance(part, str) and part.strip():
-                                output_content.append({"type": "text", "content": part})
+                                yield self._part(parts, {"type": "text", "content": part})
                             elif isinstance(part, dict) and "image_b64" in part:
-                                output_content.append({
-                                    "type": "image",
-                                    "mime_type": part["mime_type"],
-                                    "content": part["image_b64"],
-                                })
-
-                    elif intent == "plotting":
-                        for part in function_output_parts:
-                            if not part:
-                                continue
-                            if isinstance(part, str):
-                                output_content.append({"type": "text", "content": part})
-                            elif isinstance(part, dict) and "image_b64" in part:
-                                output_content.append({
+                                yield self._part(parts, {
                                     "type": "image",
                                     "mime_type": part["mime_type"],
                                     "content": part["image_b64"],
                                 })
                     else:
-                        output_content.append({"type": "text", "content": FALLBACK_MSG})
+                        yield self._part(parts, {"type": "text", "content": FALLBACK_MSG})
 
                 self.timing_data.append(timing_1)
-                return output_content
 
         except Exception as e:
             self.error_message = traceback.format_exc()
             logging.error("Unhandled error in chat: %s", self.error_message)
-            output_content.append({"type": "text", "content": FALLBACK_MSG})
             raise HTTPException(status_code=500, detail=str(e))
 
-        if not output_content:
-            output_content.append({"type": "text", "content": FALLBACK_MSG})
+        if not parts:
             logging.info("No output content generated")
-        return output_content
+            yield self._part(parts, {"type": "text", "content": FALLBACK_MSG})
 
     def history(self):
         print(self.message_history)

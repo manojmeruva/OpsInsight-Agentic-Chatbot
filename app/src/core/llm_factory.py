@@ -113,7 +113,7 @@ _PROVIDERS: dict[str, callable] = {
 # ── Default model names per provider ─────────────────────────────────────────
 
 _DEFAULT_ORCHESTRATOR = {
-    "google":       "gemini-2.0-flash-001",
+    "google":       "gemini-2.5-flash",
     "openai":       "gpt-4o",
     "azure_openai": "gpt-4o",
     "anthropic":    "claude-3-5-sonnet-20241022",

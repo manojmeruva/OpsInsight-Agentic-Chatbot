@@ -6,8 +6,8 @@ the local metadata.db (SQLite) using an atomic swap.
 
 Expected repo structure (nested: module/tag):
     <repo_root>/
-        <module_name>/              # e.g. SMOP, dm
-            <tag_name>/             # e.g. billing_efficiency, ld
+        <module_name>/              # e.g. FINANCE
+            <tag_name>/             # e.g. finance
                 prompt.md           # Full prompt text
                 description.txt     # One-line plain text description
 """
@@ -16,7 +16,7 @@ import os
 import sqlite3
 import logging
 from filelock import FileLock
-from config import Config
+from config import Config, BASE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +109,40 @@ def validate_and_filter(entries: list[dict]) -> list[dict]:
     return valid
 
 
+def load_metadata_from_domains() -> list[dict]:
+    """
+    Build prompt entries from Config.DOMAINS (prompt files kept in this repo).
+    Used for local runs when the git metadata repo is not mounted.
+    """
+    entries = []
+    for domain in Config.DOMAINS:
+        if domain.get("prompt_file"):
+            with open(os.path.join(BASE_DIR, domain["prompt_file"]), "r", encoding="utf-8") as f:
+                prompt_text = f.read()
+        else:
+            prompt_text = Config.PLACEHOLDER_DOMAIN_PROMPT.format(**domain)
+
+        entries.append({
+            "tag": domain["tag"],
+            "prompt": prompt_text,
+            "description": domain["description"],
+            "module": domain["module"],
+        })
+    return entries
+
+
 def rebuild_metadata_db(repo_path: str) -> dict:
     """
     Load metadata from repo, validate, build new DB, atomic swap.
+    Falls back to Config.DOMAINS when *repo_path* does not exist.
     Returns metrics dict with counts.
     Raises on failure — existing metadata.db is preserved.
     """
-    entries = load_metadata_from_repo(repo_path)
+    if os.path.isdir(repo_path):
+        entries = load_metadata_from_repo(repo_path)
+    else:
+        logger.info("Metadata repo '%s' not found, loading domains from Config.DOMAINS", repo_path)
+        entries = load_metadata_from_domains()
 
     if not entries:
         raise ValueError(f"No metadata entries found in {repo_path}")

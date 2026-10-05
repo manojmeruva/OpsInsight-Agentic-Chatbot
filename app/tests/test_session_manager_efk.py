@@ -7,10 +7,10 @@ class TestLoadSessionHistoryFromES:
     """Tests for SessionManager.load_session_history_from_es()"""
 
     @patch("session_management.session_manager_mongo.ElasticsearchRepository")
-    @patch("session_management.session_manager_mongo.SessionRepository")
-    def _create_manager(self, MockSessionRepo, MockESRepo, es_available=True):
+    @patch("session_management.session_manager_mongo.RepositoryFactory")
+    def _create_manager(self, MockRepoFactory, MockESRepo, es_available=True):
         mock_repo = MagicMock()
-        MockSessionRepo.return_value = mock_repo
+        MockRepoFactory.create_session_repository.return_value = mock_repo
 
         mock_es_repo = MagicMock()
         mock_es_repo.is_available.return_value = es_available
@@ -114,10 +114,10 @@ class TestArchiveSessionDataToES:
     """Tests for SessionManager.archive_session_data_to_es()"""
 
     @patch("session_management.session_manager_mongo.ElasticsearchRepository")
-    @patch("session_management.session_manager_mongo.SessionRepository")
-    def _create_manager(self, MockSessionRepo, MockESRepo, es_available=True):
+    @patch("session_management.session_manager_mongo.RepositoryFactory")
+    def _create_manager(self, MockRepoFactory, MockESRepo, es_available=True):
         mock_repo = MagicMock()
-        MockSessionRepo.return_value = mock_repo
+        MockRepoFactory.create_session_repository.return_value = mock_repo
 
         mock_es_repo = MagicMock()
         mock_es_repo.is_available.return_value = es_available

@@ -5,16 +5,17 @@ DB_PATH = "metadata.db"
 
 
 async def get_prompt(tag: str) -> str:
-    """Fetch the full pre-built prompt text for a given domain tag."""
+    """Fetch the full pre-built prompt text for a given domain tag (or module name)."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "SELECT prompt FROM prompts WHERE LOWER(tag) = ?", (tag.lower(),)
+            "SELECT prompt FROM prompts WHERE LOWER(tag) = ? OR LOWER(module) = ? ORDER BY tag",
+            (tag.lower(), tag.lower())
         )
-        row = await cursor.fetchone()
-        if row is None:
+        rows = await cursor.fetchall()
+        if not rows:
             logging.warning("No prompt found for tag: %s", tag)
             return ""
-        return row[0]
+        return "\n\n".join(r[0] for r in rows)
 
 
 async def get_all_tags_and_descriptions(module: str = None) -> list[tuple[str, str]]:

@@ -3,15 +3,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class Config:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     DB_HOST = os.getenv("STARROCKS_IP")
     DB_USER = os.getenv("STARROCKS_USER")
     DB_NAME = os.getenv("STARROCKS_DB")
     DB_PASSWORD = os.getenv("STARROCKS_PASSWORD")
+    # Session store: "mongo" (default, production) | "sqlite" (local run)
     DB_TYPE = os.getenv("DB_TYPE","mongo")
     DB_PORT = int(os.getenv("STARROCKS_PORT", 3306))
     SESSION_TIMEOUT_SECONDS = int(os.getenv("SESSION_TIMEOUT_SECONDS", 30))
+
+    # Data warehouse the generated SQL runs against:
+    #   "starrocks" (default, production, MySQL dialect) | "sqlite" (local run)
+    DATA_DB_ENGINE = os.getenv("DATA_DB_ENGINE", "starrocks").lower().strip()
+    SQLITE_DATA_DB_PATH = os.getenv("SQLITE_DATA_DB_PATH", os.path.join(BASE_DIR, "finance.db"))
+    SQLITE_SESSION_DB_PATH = os.getenv("SQLITE_SESSION_DB_PATH", os.path.join(BASE_DIR, "sessions.db"))
 
     # Connection pool settings
     POOL_SIZE = int(os.getenv("STARROCKS_POOL_SIZE", 5))
@@ -19,7 +28,81 @@ class Config:
     POOL_RECYCLE_SECONDS = int(os.getenv("STARROCKS_POOL_RECYCLE", 1800))
     POOL_PRE_PING = True
 
-    
+    # --------------------------------------------------
+    # Business domains (modules) shown in the UI.
+    # The first entry is the live domain; the rest are placeholders kept as
+    # templates for onboarding new domains (status="placeholder").
+    # prompt_file / context_file are relative to app/src.
+    # --------------------------------------------------
+    DOMAINS = [
+        {
+            "module": "FINANCE",
+            "tag": "finance",
+            "display_name": "Finance — Accounts & Transactions",
+            "short_name": "Finance",
+            "description": "Bank accounts, balances and credit/debit transactions (NEFT, IMPS, UPI, RTGS, cheques, charges) across partner banks.",
+            "status": "active",
+            "icon": "landmark",
+            "prompt_file": os.path.join("prompts", "finance.md"),
+            "context_file": os.path.join("core", "finance_operations.txt"),
+            "sample_questions": [
+                "What is the total available balance across all accounts, by bank?",
+                "Show the top 10 debit transactions in June 2026",
+                "Plot monthly credits vs debits for the last 6 months",
+                "Which accounts are overdrawn (negative available balance)?",
+                "How much was paid via NEFT vs IMPS vs UPI this year?",
+                "Find the transaction with reference number HDFCH01078329532",
+                "What is the net cash flow for account ending 9069 in June 2026?",
+                "What is the difference between a reference number and a UTR?",
+            ],
+        },
+        {
+            "module": "RETAIL",
+            "tag": "retail_sales",
+            "display_name": "Retail — Sales & Orders",
+            "short_name": "Retail",
+            "description": "Placeholder domain: store sales, orders, returns and basket analytics.",
+            "status": "placeholder",
+            "icon": "shopping-cart",
+            "prompt_file": None,
+            "context_file": None,
+            "sample_questions": [
+                "Top 10 SKUs by revenue last quarter",
+                "Return rate by store this month",
+            ],
+        },
+        {
+            "module": "HR",
+            "tag": "hr_workforce",
+            "display_name": "HR — Workforce Analytics",
+            "short_name": "HR",
+            "description": "Placeholder domain: headcount, attrition, hiring funnel and payroll analytics.",
+            "status": "placeholder",
+            "icon": "users",
+            "prompt_file": None,
+            "context_file": None,
+            "sample_questions": [
+                "Attrition rate by department this year",
+                "Open positions by location",
+            ],
+        },
+    ]
+
+    PLACEHOLDER_DOMAIN_PROMPT = (
+        "### DOMAIN LOGIC & CONTEXT\n"
+        "**Domain:** {display_name}\n"
+        "This domain is a placeholder and is not yet connected to a data source. "
+        "Do not generate SQL; reply that the domain is coming soon.\n"
+    )
+
+    @classmethod
+    def get_domain(cls, module_or_tag: str):
+        key = (module_or_tag or "").lower()
+        for d in cls.DOMAINS:
+            if d["module"].lower() == key or d["tag"].lower() == key:
+                return d
+        return None
+
 
     @classmethod
     def get_db_config(cls):
@@ -34,7 +117,7 @@ class Config:
     def get_context_from_rag_declaration(tags):
         return {
             "name": "get_context_from_rag",
-            "description": "Extracts relevant context from MDM docs",
+            "description": "Extracts relevant context from the domain business glossary and policy docs",
             "parameters": {
                 "type": "object",
                 "properties": {

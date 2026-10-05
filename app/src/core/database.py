@@ -1,6 +1,9 @@
 """
 Centralized StarRocks connection pool using SQLAlchemy QueuePool.
 
+For local runs set DATA_DB_ENGINE=sqlite: get_connection() then yields a
+read-only sqlite3 connection to Config.SQLITE_DATA_DB_PATH instead.
+
 Usage:
     from core.database import get_connection
 
@@ -10,6 +13,8 @@ Usage:
 """
 
 import logging
+import os
+import sqlite3
 import threading
 from contextlib import contextmanager
 from urllib.parse import quote_plus
@@ -67,6 +72,25 @@ def get_engine():
     return _engine
 
 
+def is_sqlite() -> bool:
+    return Config.DATA_DB_ENGINE == "sqlite"
+
+
+@contextmanager
+def _sqlite_connection():
+    path = os.path.abspath(Config.SQLITE_DATA_DB_PATH)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"SQLite data DB not found at {path}. Check SQLITE_DATA_DB_PATH."
+        )
+    # Read-only: generated code must never modify data
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 @contextmanager
 def get_connection():
     """
@@ -75,6 +99,11 @@ def get_connection():
     The connection is returned to the pool (not destroyed) when the
     context manager exits.
     """
+    if is_sqlite():
+        with _sqlite_connection() as conn:
+            yield conn
+        return
+
     engine = get_engine()
     raw_conn = engine.raw_connection()
     try:

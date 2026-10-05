@@ -26,6 +26,7 @@ class MessageResponse(BaseModel):
     response: list
     response_id : str
     response_timestamp : datetime.datetime
+    sql: Optional[str] = None
     # execution_times: list
     # session_id: Optional[str] = None
     # chat_history: list

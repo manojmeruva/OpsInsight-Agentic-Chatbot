@@ -150,7 +150,7 @@ async def test_query(request: UserRequest):
         return MessageResponse(
             response=[{
                 "type": "text",
-                "content": "We acknowledge your question. Energon is in the training phase, and the response will be available soon."
+                "content": "We acknowledge your question. OpsInsight is still learning this type of request, and the response will be available soon."
             }],
             response_id=response_id,
             response_timestamp=response_timestamp

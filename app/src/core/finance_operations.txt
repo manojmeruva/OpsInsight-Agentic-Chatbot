@@ -1,0 +1,42 @@
+# Finance Assistant — Business Glossary & Policies
+
+Use this document to answer conceptual / definitional questions. It does not contain live data.
+
+## What the assistant covers
+- **Banks** — the 10 partner banks, identified by their IFSC prefix (bank code): HDFC, ICIC (ICICI), SBIN (SBI), UTIB (Axis), KKBK (Kotak), CNRB (Canara), UBIN (Union Bank of India), AUBL (AU Small Finance), TMBL (Tamilnad Mercantile), RATN (RBL).
+- **Accounts** — each account belongs to one bank and one customer/entity, is enrolled in a program (product), and carries a current *available balance*.
+- **Transactions** — every credit (money in) and debit (money out) posted to an account, with date, amount, narration (description) and reference numbers.
+
+## Key terms
+- **Available balance** — funds the account can use right now. A **negative** available balance means the account is overdrawn or is drawing on a sanctioned credit line (OD/CC).
+- **Credit** — money received into the account (inflow).
+- **Debit** — money paid out of the account (outflow), including bank charges.
+- **Net cash flow** — total credits minus total debits for a period.
+- **Program** — the product/scheme an account is onboarded under (e.g. Program 4, 21, 46). Program names are managed outside this system.
+- **Entity** — the customer (business or individual) that owns one or more accounts.
+
+## Payment rails (derived from the transaction description)
+- **NEFT** — National Electronic Funds Transfer. Batch-settled, no minimum amount; narration typically looks like `NEFT - <IFSC> - <ref> - <beneficiary a/c> - <name>`.
+- **RTGS** — Real Time Gross Settlement, for high-value transfers (₹2 lakh and above). Narrations starting with `R/` are RTGS inward credits.
+- **IMPS** — Immediate Payment Service, 24×7 instant transfers. `IMPS OW` = outward, `IMPS/P2A` = person-to-account inward.
+- **UPI** — Unified Payments Interface, instant mobile payments; narration starts with `UPI-`.
+- **FT** — internal Fund Transfer within the same bank.
+- **Cheque deposits / clearing** — paper instruments cleared through CTS.
+- **Charges** — bank fees such as "IMPS charges"; always debits.
+- **Loan disbursement** — credits from lenders such as Bajaj Finance (BFL) that fund a customer purchase.
+
+## The two reference numbers
+- **Transaction reference ID** (`ref no`, `receipt number`) — plaintext, unique per bank posting; this is what the assistant searches when you give it a "reference number".
+- **UTR (Unique Transaction Reference)** — the 22-character (RTGS) / 16-character (NEFT) number issued by the payment system. In this platform it is **encrypted at rest**, so it cannot be searched directly or displayed. Ask using the transaction reference ID instead, or contact operations for a UTR trace.
+
+## Data protection policy
+- Account numbers are shown masked to the last 4 digits (e.g. `XXXXXX9069`).
+- UTR numbers are never displayed.
+- Customer identity details beyond the entity ID are not stored in this dataset.
+
+## Typical questions you can ask
+- Balances: "Total balance by bank", "Which accounts are overdrawn?", "Balance by program".
+- Flows: "Credits vs debits by month", "Net cash flow for account ending 9069 in June".
+- Channels: "NEFT vs IMPS vs UPI volume this year", "How much did we pay in IMPS charges?".
+- Lookups: "Find transaction with reference HDFCH01078329532", "Largest debits last month".
+- Counterparties: "All payments to Selection Mobile", "Bajaj Finance disbursements this quarter".

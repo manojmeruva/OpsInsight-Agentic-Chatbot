@@ -5,24 +5,28 @@ Tool definitions split from multi_turn_langchain.py.
 All LLM access goes through llm_factory. No env vars read here.
 """
 
+import asyncio
 import logging
 import os
 import base64
 import time
 import traceback
 
+import matplotlib
+matplotlib.use("Agg")  # headless backend — plots are rendered server-side
+
 from fastapi import HTTPException
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from config import Config
 from core.database import get_connection
 from core.prompts.prompt_builder import build_prompt
 from .llm_factory import get_codegen_llm
 from .models import Cgen
 
 
-BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
-Electricity_Domain_Sector_PATH = os.path.join(BASE_DIR, "Electricity_Domain_Sector.txt")
+SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ==============================================================================
@@ -117,7 +121,7 @@ def execute_dynamic_code(my_output: list[Cgen]) -> tuple[list, list]:
                     image_b64 = img if isinstance(img, str) else base64.b64encode(img).decode("utf-8")
                     return [
                         final_answer["text"],
-                        {"image_b64": image_b64, "mime_type": "image/jpeg"},
+                        {"image_b64": image_b64, "mime_type": "image/png"},
                     ], children_timings
                 elif final_answer["text"]:
                     return [final_answer["text"]], children_timings
@@ -137,15 +141,15 @@ def execute_dynamic_code(my_output: list[Cgen]) -> tuple[list, list]:
 # get_context_from_rag
 # ==============================================================================
 
-def get_context_from_rag(user_input: str) -> tuple[str, dict]:
+def get_context_from_rag(user_input: str, module_name: str) -> tuple[str, dict]:
     try:
-        lowered = user_input.lower()
         t0      = time.time()
+        content = "No reference documentation is available for this domain."
 
-        if any(k in lowered for k in domains):
-            with open(Electricity_Domain_Sector_PATH, "r") as f:
+        domain = Config.get_domain(module_name)
+        if domain and domain.get("context_file"):
+            with open(os.path.join(SRC_DIR, domain["context_file"]), "r", encoding="utf-8") as f:
                 content = f.read()
-    
 
         timing = {"function": "get_context_from_rag", "time": time.time() - t0, "children": []}
         return content, timing
@@ -158,12 +162,17 @@ def get_context_from_rag(user_input: str) -> tuple[str, dict]:
 # build_tools — returns (sql_tool, rag_tool) closed over per-request state
 # ==============================================================================
 
-def build_tools(user_input: str, conversation_history:str,module_name:str,current_time: str, timing_data: list, last_generated_code: list):
+def build_tools(user_input: str, conversation_history:str,module_name:str,current_time: str, timing_data: list, last_generated_code: list, on_status=None):
     """
     Returns two LangChain @tool functions bound to the current request's state.
     `timing_data` and `last_generated_code` are mutable lists so chat() can
     read timing/code back after the tools run.
+    `on_status(dict)` is called with progress updates for streaming clients.
     """
+
+    def status(stage: str, message: str):
+        if on_status:
+            on_status({"stage": stage, "message": message})
 
     @tool
     async def get_data_from_sql() -> dict:
@@ -176,8 +185,10 @@ def build_tools(user_input: str, conversation_history:str,module_name:str,curren
 
         sys_prompt = await build_prompt(tag=module_name)
 
+        status("generating_sql", "Generating SQL…")
         t_sql = time.time()
-        parsed = text_to_sql(user_input,conversation_history,sys_prompt, current_time)
+        # Blocking LLM / DB calls run in worker threads so responses keep streaming
+        parsed = await asyncio.to_thread(text_to_sql, user_input, conversation_history, sys_prompt, current_time)
         if parsed and parsed[0].code:
             last_generated_code.clear()
             last_generated_code.append(parsed[0].code)
@@ -189,7 +200,9 @@ def build_tools(user_input: str, conversation_history:str,module_name:str,curren
             "children": [],
         })
 
-        function_output_parts, exec_children = execute_dynamic_code(parsed)
+        intent = parsed[0].intent if parsed else "data-extraction"
+        status("running_query", "Building the chart…" if intent == "plotting" else "Running the query…")
+        function_output_parts, exec_children = await asyncio.to_thread(execute_dynamic_code, parsed)
 
         timing_data.append({
             "function": "get_data_from_sql",
@@ -203,10 +216,10 @@ def build_tools(user_input: str, conversation_history:str,module_name:str,curren
     def get_context_from_rag_tool() -> str:
         """
         Call this tool when the user asks a conceptual, definitional, or
-        policy question that requires context from MDM / Smart-meter
-        documentation rather than live database data.
+        policy question that requires context from the domain's business
+        glossary / documentation rather than live database data.
         """
-        content, timing = get_context_from_rag(user_input)
+        content, timing = get_context_from_rag(user_input, module_name)
         timing_data.append(timing)
         return content
 

@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -9,7 +10,7 @@ from typing import Optional
 
 
 from core.conversation import MultiTurnConversation
-from repositories.SessionRepository import SessionRepository
+from repositories.RepositoryFactory import RepositoryFactory
 from repositories.ElasticsearchRepository import ElasticsearchRepository
 from core.message_serializer import serialize_messages,deserialize_messages
 
@@ -18,7 +19,11 @@ class SessionManager:
         self.api_key = api_key
         self.db_config = db_config
         self.session_timeout = timedelta(seconds=session_timeout_seconds)
-        self.repo = SessionRepository()
+        self.repo = RepositoryFactory.create_session_repository()
+        self.es_repo = None
+        if os.getenv("ES_ENABLED", "true").lower() != "true":
+            logging.info("Elasticsearch archival disabled (ES_ENABLED=false)")
+            return
         try:
             self.es_repo = ElasticsearchRepository()
         except Exception as e:
@@ -42,7 +47,7 @@ class SessionManager:
                         self,
                         current_timestamp,
                         session_id: Optional[str],
-                        module_name:str ="ELOSS",
+                        module_name:str ="FINANCE",
                         user_email: Optional[str] = "sample",
                         session_name: str = "sample",
                     ) -> MultiTurnConversation:
@@ -149,6 +154,7 @@ class SessionManager:
                 "response": {  # Corrected typo to 'response'
                     "id": message.get("response_id", ""),
                     "message": message.get("response", {}),
+                    "sql": message.get("sql"),
                     "feedback": message.get("feedback", None),
                     "is_like": message.get("like", None),
                     "timestamp": message.get("timestamp", "").isoformat() if message.get("timestamp") else None

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 import os
 import logging
 
-from core.database import get_engine, dispose_pool
+from core.database import get_engine, dispose_pool, is_sqlite
 from utils.git_metadata_loader import rebuild_metadata_db
 from core.vault_client import VaultClient
 from session_management.session_manager_mongo import SessionManager
@@ -13,9 +13,11 @@ from config import Config
 async def lifespan(app: FastAPI):
     # ===== STARTUP =====
     try:
-        # 1. DB Engine
-        engine = get_engine()
-        app.state.engine = engine
+        # 1. DB Engine (StarRocks pool; local SQLite opens per-query connections)
+        if is_sqlite():
+            logging.info("Using local SQLite data DB: %s", Config.SQLITE_DATA_DB_PATH)
+        else:
+            app.state.engine = get_engine()
 
         # 2. Metadata load (non-blocking failure)
         try:
@@ -24,10 +26,15 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logging.error("Metadata load failed, continuing with existing DB: %s", e)
 
-        # 3. Vault + API key
-        vault = VaultClient()
-        gemini_api_key = vault.get_gemini_key()
-        os.environ["GOOGLE_API_KEY"] = gemini_api_key
+        # 3. API key — Vault when configured, otherwise GOOGLE_API_KEY from .env
+        if os.getenv("VAULT_ADDR"):
+            vault = VaultClient()
+            gemini_api_key = vault.get_gemini_key()
+            os.environ["GOOGLE_API_KEY"] = gemini_api_key
+        else:
+            gemini_api_key = os.getenv("GOOGLE_API_KEY", "")
+            if not gemini_api_key:
+                logging.warning("GOOGLE_API_KEY is not set — LLM calls will fail")
 
         # 4. Session Manager
         session_manager = SessionManager(

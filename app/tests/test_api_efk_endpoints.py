@@ -5,15 +5,15 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
-    """Create a test client with mocked session_manager."""
-    with patch("main.SessionManager") as MockSM:
-        mock_sm = MagicMock()
-        MockSM.return_value = mock_sm
+    """Create a test client with a mocked session_manager on app.state.
 
-        # Patch the module-level session_manager before importing app
-        with patch("main.session_manager", mock_sm):
-            from main import app
-            yield TestClient(app), mock_sm
+    TestClient is used without a context manager, so the startup lifespan
+    (DB pool, Vault, metadata rebuild) does not run.
+    """
+    from main import app
+    mock_sm = MagicMock()
+    app.state.session_manager = mock_sm
+    yield TestClient(app), mock_sm
 
 
 # -------------------- POST /api/load-session-history --------------------
