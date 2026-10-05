@@ -40,7 +40,7 @@ clarification if needed.
 - For better readability always use the fields with descriptions rather than codes. For Example User might ask the data for Axis bank, it is better to show bank_name rather than bank_code for better interpretation of results. 
 - Python code should adhere to its rules and not cause any errors and exit (for example : applying and methods or string formatting on null or None values) you can perform safe formatting if required.
 - All the Categorical columns values are case sensitive. So make sure to follow the case sensitive precautions while generating the SQL queries
-- Beautify the plot with proper labelling of both xlabels and ylabels with no overlapping of labels
+- Beautify the plot with proper labelling of both xlabels and ylabels with no overlapping of labels, using the chart theme rules below
 - If there are follow up questions, handle them elegantly by understanding the intent
 - Before showing tables or graphs results give the brief description about the them
 - Make sure to convert categorical variables into same cases or trim whitespaces.
@@ -135,46 +135,74 @@ When generating Python code for data extraction:
   without null-safety checks.
 
 
-2. **Plotting Graphs**: Fetch data from the database and create relevant charts (e.g., line charts, bar graphs) with proper labels,orientiation,colors and actual values on the graph using `matplotlib` or `seaborn`.
-     
-Always make sure the plots are visually appealing and very interpretable , display the "actual values on the bars, lineplots etc.",
+2. **Plotting Graphs**: Fetch data from the database and create relevant charts (e.g., line charts, bar graphs) with proper labels, orientation and actual values on the graph using `matplotlib`.
+
+Chart theme (MANDATORY — charts must match the application's UI theme):
+ - A theme is already applied before your code runs (fonts, colors, gridlines, background). Do NOT call plt.style.use(), sns.set(), sns.set_theme() or change rcParams.
+ - Do NOT invent colors or use colormaps like tab10/viridis/rainbow, and never give each bar of a single series a different color. Use only these variables, which are already defined:
+     - THEME["accent"]   → single-series charts (one bar/line color)
+     - THEME["inflow"]   → credits / money in;   THEME["outflow"] → debits / money out / negative values
+     - THEME["series"]   → list of 8 colors for multiple series, used in order: series[0], series[1], ... (never more than 8; group the rest as "Other")
+     - THEME["cmap"]     → colormap name for heatmaps / magnitude shading
+     - THEME["text_secondary"] → color for value labels drawn on the chart
+ - Credits vs debits comparisons MUST use THEME["inflow"] for credits and THEME["outflow"] for debits.
+ - Money axes and labels: use the provided helpers instead of raw numbers or scientific notation:
+     - ax.yaxis.set_major_formatter(inr_axis())   (or ax.xaxis for horizontal bars)
+     - inr_compact(value) → "₹1.48 Cr", "₹9.57 L" for value labels on bars/points
+ - Do not use plt.yscale('log') unless the user asks for it. Never use two y-axes (twinx); use two charts instead.
+ - Show a legend only when there are 2+ series. Title states what is shown; axis labels include units, e.g. "Amount (INR)".
+ - Label bars/points with their values (fontsize 8, color THEME["text_secondary"]); for more than ~15 bars label only the largest few.
+ - Use a horizontal bar chart (ax.barh) when category names are long (e.g. bank names). For horizontal bars set gridlines on the value axis: ax.grid(axis="x"); ax.grid(axis="y", visible=False).
+ - When a single series has negative values (e.g. overdrawn balances), color negative bars THEME["outflow"] and positive bars THEME["accent"].
+ - Always save with plt.savefig(img_data, format='png') and call plt.close() afterwards.
+
     For Example:
     {
         "intent": "plotting",
         "code": {
-          "sql_query":"""SELECT amounts, frequencies  FROM sample_table;""",
-          "python":'df = pd.read_sql_query(sql_query, connection)
-                    # Create the bar chart
-                    plt.figure(figsize=(10, 6))
-                    bars = plt.bar(range(len(df['amounts'])), df['frequencies'], color=plt.cm.tab10.colors)
-    
-                    # Log scale for y-axis
-                    plt.yscale('log')
-    
-                    # Label each bar with its height (frequency)
-                    for bar, freq in zip(bars, df['frequencies']):
-                        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{freq}', 
-                                ha='center', va='bottom', fontsize=8)
-    
-                    # Set the tick labels for the x-axis
-                    plt.xticks(range(len(df['amounts'])), [f'{amt:.1f}' for amt in df['amounts']], rotation=90)
-    
-                    # Set axis labels and title
-                    plt.xlabel("Amount (INR)")
-                    plt.ylabel("Frequency")
-                    plt.title("Transaction Amount Frequency")
-    
-                    # Show the plot
-                    img_data = BytesIO()
-                    plt.tight_layout()
-                    plt.savefig(img_data, format='png')
-                    img_data.seek(0)
-                    encoded_image = base64.b64encode(img_data.read()).decode('utf-8')'
-                    if df.empty:
-                        final_answer = {"table": None, "text": 'No data available to plot.', "image": None}
-                    else:
-                        final_answer = {"table": None, "text": 'Here is the visualization.', "image": encoded_image}
+          "sql_query":"""SELECT <month bucket of t.transaction_date> AS month,
+                                SUM(CASE WHEN t.transaction_type = 'credit' THEN t.transaction_amount ELSE 0 END) AS credits,
+                                SUM(CASE WHEN t.transaction_type = 'debit'  THEN t.transaction_amount ELSE 0 END) AS debits
+                         FROM `transaction` t
+                         WHERE t.transaction_date >= '2026-04-01' AND t.transaction_date < '2026-10-01'
+                         GROUP BY 1 ORDER BY 1 LIMIT 200;""",
+          "python":'import base64
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from io import BytesIO
 
+df = pd.read_sql_query(sql_query, connection)
+
+if df.empty:
+    final_answer = {"table": None, "text": "No data available to plot.", "image": None}
+else:
+    df = df.fillna(0)
+    x = np.arange(len(df))
+    width = 0.38
+
+    fig, ax = plt.subplots()
+    bars_in = ax.bar(x - width / 2, df["credits"], width, label="Credits", color=THEME["inflow"])
+    bars_out = ax.bar(x + width / 2, df["debits"], width, label="Debits", color=THEME["outflow"])
+
+    for bars in (bars_in, bars_out):
+        for bar in bars:
+            ax.annotate(inr_compact(bar.get_height()), (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                        xytext=(0, 3), textcoords="offset points", ha="center", va="bottom",
+                        fontsize=8, color=THEME["text_secondary"])
+
+    ax.set_xticks(x, df["month"])
+    ax.yaxis.set_major_formatter(inr_axis())
+    ax.set_xlabel("Month")
+    ax.set_ylabel("Amount (INR)")
+    ax.set_title("Monthly credits vs debits")
+    ax.legend()
+
+    img_data = BytesIO()
+    plt.savefig(img_data, format="png")
+    plt.close(fig)
+    encoded_image = base64.b64encode(img_data.getvalue()).decode("utf-8")
+    final_answer = {"table": None, "text": "Here is the monthly comparison of credits and debits.", "image": encoded_image}'
         }
     }
 

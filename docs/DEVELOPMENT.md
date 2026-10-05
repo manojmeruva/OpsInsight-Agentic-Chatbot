@@ -16,6 +16,9 @@ pytest app/tests          # from the repo root (or `pytest tests` from app/)
 | `app/tests/test_api_efk_endpoints.py` | Archival and restore API endpoints |
 | `app/tests/test_elasticsearch_repository.py` | `ElasticsearchRepository` |
 | `app/tests/test_session_manager_efk.py` | `SessionManager` archival/restore flows |
+| `app/tests/test_plot_theme.py` | Chart theme reset and ₹ formatters |
+| `app/tests/test_message_text.py` | Text extraction from string and content-block LLM responses |
+| `app/tests/test_speech_endpoint.py` | `/speech-to-text` validation and transcription (LLM mocked) |
 
 ## Manual checks
 

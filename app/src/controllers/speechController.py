@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import os
 import time
@@ -9,10 +10,12 @@ from langchain_core.messages import HumanMessage
 
 
 from core.llm_factory import get_codegen_llm
+from core.message_serializer import content_text
 
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {"wav"}
+MAX_AUDIO_BYTES = 10 * 1024 * 1024  # ~5 min of 16 kHz mono PCM
 
 
 def allowed_file(filename: str) -> bool:
@@ -40,6 +43,9 @@ async def speech_to_text(
         if not content:
             raise HTTPException(status_code=400, detail={"success": False, "error": "Empty file uploaded"})
 
+        if len(content) > MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=413, detail={"success": False, "error": "Recording is too long"})
+
         audio_b64 = base64.b64encode(content).decode("utf-8")
 
         llm = get_codegen_llm()
@@ -63,7 +69,8 @@ async def speech_to_text(
             },
         ])
 
-        transcription = llm.invoke([stt_message]).content.strip()
+        # Blocking LLM calls run in a worker thread so other requests (and streams) keep flowing
+        transcription = content_text((await asyncio.to_thread(llm.invoke, [stt_message])).content).strip()
         translation   = None
 
         # ── Translation ───────────────────────────────────────────────────
@@ -73,7 +80,7 @@ async def speech_to_text(
                 f"Provide ONLY the translation without any explanations, "
                 f"commentary, or additional text:\n\n{transcription}"
             ))
-            translation = llm.invoke([tt_message]).content.strip()
+            translation = content_text((await asyncio.to_thread(llm.invoke, [tt_message])).content).strip()
 
         return JSONResponse(
             status_code=200,

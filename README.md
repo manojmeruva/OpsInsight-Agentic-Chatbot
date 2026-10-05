@@ -10,7 +10,11 @@
 ![Gemini](https://img.shields.io/badge/LLM-Gemini%202.5%20Flash-4285F4?logo=google&logoColor=white)
 ![LangChain](https://img.shields.io/badge/LangChain-1.x-1C3C3C)
 
-[Features](#features) · [Quick start](#quick-start) · [Setup options](#setup-options) · [Documentation](#documentation)
+[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Setup options](#setup-options) · [Documentation](#documentation)
+
+<br/>
+
+<img src="docs/images/home.png" alt="OpsInsight home screen with domain switcher, conversation history and sample questions" width="900"/>
 
 </div>
 
@@ -23,8 +27,21 @@
 - **Finance domain built in.** Covers banks, accounts, balances and credit/debit transactions (NEFT, IMPS, UPI, RTGS, cheques, charges).
 - **Privacy guardrails.** Account numbers are masked, UTRs are never shown, and the local data DB is opened read-only.
 - **Multi-turn sessions.** Includes history, like/dislike and text feedback.
-- **English and Arabic,** plus voice input.
+- **English and Arabic,** plus voice input: speak a question and review the transcript before sending.
 - **Pluggable infrastructure.** Runs with SQLite or StarRocks for data, SQLite or MongoDB for sessions, optional Elasticsearch archival and optional Vault.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/chart-answer.png" alt="Bar chart of monthly credits vs debits for the last 6 months"/></td>
+    <td width="50%"><img src="docs/images/table-answer.png" alt="Sortable table of total available balance by bank with CSV export"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Charts on demand</b> — "Plot monthly credits vs debits for the last 6 months"</td>
+    <td align="center"><b>Sortable, exportable tables</b> — "What is the total available balance by bank?"</td>
+  </tr>
+</table>
 
 ## Quick start
 

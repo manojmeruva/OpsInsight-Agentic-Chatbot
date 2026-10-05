@@ -20,6 +20,7 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, System
 from prompts.sys_domain_prompt import generate_domain_prompt, generate_sys_domain_test_prompt
 from .llm_factory import get_llm, get_codegen_llm
 from .tools import build_tools
+from .message_serializer import content_text
 
 
 ARABIC_PATTERN = re.compile(
@@ -100,19 +101,6 @@ class MultiTurnConversation:
 
     # ── Streaming helpers ─────────────────────────────────────────────────────
 
-    @staticmethod
-    def _text_of(content) -> str:
-        """Extract plain text from an AIMessage / chunk content (str or list of blocks)."""
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            return "".join(
-                item.get("text", "") if isinstance(item, dict) and item.get("type") == "text"
-                else item if isinstance(item, str) else ""
-                for item in content
-            )
-        return ""
-
     async def _stream_llm(self, llm, parts: list, stream_text: bool):
         """
         Stream one LLM call. Yields ("event", ...) tuples for text deltas and
@@ -122,7 +110,7 @@ class MultiTurnConversation:
         index = len(parts)
         async for chunk in llm.astream(self.message_history):
             full = chunk if full is None else full + chunk
-            delta = self._text_of(chunk.content)
+            delta = content_text(chunk.content)
             if stream_text and delta:
                 yield "event", {"event": "delta", "data": {"index": index, "text": delta}}
         message = message_chunk_to_message(full) if full is not None else AIMessage(content="")
@@ -226,7 +214,7 @@ class MultiTurnConversation:
             # ── No tool call → plain text ─────────────────────────────────
             if not response.tool_calls:
                 self.timing_data.append(timing_1)
-                text = self._text_of(response.content)
+                text = content_text(response.content)
                 yield self._part(parts, {"type": "text", "content": text or FALLBACK_MSG})
                 return
 
@@ -256,7 +244,7 @@ class MultiTurnConversation:
                 timing_2 = {"function": "llm_call_2", "time": time.time() - t2, "children": []}
                 self.timing_data.extend([timing_1, timing_2])
 
-                text = self._text_of(final_response.content)
+                text = content_text(final_response.content)
                 yield self._part(parts, {"type": "text", "content": text or FALLBACK_MSG})
                 return
 
@@ -298,7 +286,7 @@ class MultiTurnConversation:
                             self.message_history.append(correction)
 
                             if not correction.tool_calls:
-                                text = self._text_of(correction.content)
+                                text = content_text(correction.content)
                                 if text:
                                     yield self._part(parts, {"type": "text", "content": text})
                                 break
@@ -373,7 +361,7 @@ class MultiTurnConversation:
         )
         try:
             resp = get_codegen_llm().invoke([HumanMessage(content=prompt)])
-            return resp.content.strip(), True
+            return content_text(resp.content).strip(), True
         except Exception as e:
             self.error_message = traceback.format_exc()
             raise Exception(f"Translation error: {e}")
@@ -391,7 +379,7 @@ class MultiTurnConversation:
         )
         try:
             resp = get_codegen_llm().invoke([HumanMessage(content=prompt)])
-            return resp.content.strip()
+            return content_text(resp.content).strip()
         except Exception as e:
             self.error_message = traceback.format_exc()
             raise Exception(f"Translation error: {e}")

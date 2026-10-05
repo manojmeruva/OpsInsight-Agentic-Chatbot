@@ -12,15 +12,20 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 # ── Serialize ─────────────────────────────────────────────────────────────────
 
-def _extract_text_content(content) -> str:
-    """Strip thinking blocks, keep only text from AIMessage content."""
+def content_text(content) -> str:
+    """
+    Plain text of a message's content.
+
+    Older models return a string; newer ones (e.g. Gemini 3.x) return a list of
+    content blocks — text blocks plus thinking / signature blocks. Only text is kept.
+    """
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return " ".join(
-            block.get("text", "")
+        return "".join(
+            block.get("text", "") if isinstance(block, dict) and block.get("type") == "text"
+            else block if isinstance(block, str) else ""
             for block in content
-            if isinstance(block, dict) and block.get("type") == "text"
         )
     return ""
 
@@ -32,7 +37,7 @@ def serialize_message(message) -> dict:
             "content": message.content,
         }
     elif isinstance(message, AIMessage):
-        content = _extract_text_content(message.content)
+        content = content_text(message.content)
 
         if not content.strip():
             return None

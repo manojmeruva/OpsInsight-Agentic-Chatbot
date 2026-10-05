@@ -178,6 +178,8 @@ Both feedback endpoints return `404` if the message is not found.
 { "success": true, "transcription": "…", "translation": "…" }
 ```
 
+The response is `400` for a non-WAV or empty file and `413` above 10 MB. The UI records 16 kHz mono 16-bit WAV in the browser and sends `translate=false`, because `/query` already translates Arabic questions.
+
 ### POST /load-session-history
 
 ```json

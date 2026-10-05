@@ -14,25 +14,9 @@
 
 ## System overview
 
-```
-                     +-----------------------------+
-                     |  React Frontend (Vite, TS)  |
-                     |         :5001               |
-                     +--------------+--------------+
-                                    | HTTP  /interact-backend/api/*
-                     +--------------v--------------+
-                     |   FastAPI Backend (3.12)    |
-                     |         :5000               |
-                     +--------------+--------------+
-                                    |
-      +-------------+---------------+---------------+---------------+
-      |             |                               |               |
-+-----v------+ +----v-----------+         +---------v-----+ +-------v------+
-| Sessions   | | Data warehouse |         | Archival      | | Metadata     |
-| MongoDB /  | | StarRocks /    |         | Elasticsearch | | SQLite       |
-| SQLite     | | SQLite (local) |         | (optional)    | | metadata.db  |
-+------------+ +----------------+         +---------------+ +--------------+
-```
+![System overview: the React UI (port 5001) calls the FastAPI backend (port 5000) over HTTP and SSE. The backend calls Gemini through LangChain, optionally reads the API key from Vault, and connects to four stores: the data warehouse (StarRocks, or SQLite locally) with read-only SQL, sessions (MongoDB, or SQLite locally), domain prompts (SQLite metadata.db) and optional Elasticsearch archival.](images/architecture-overview.svg)
+
+<sub>Source: [`images/architecture-overview.excalidraw`](images/architecture-overview.excalidraw) — open at [excalidraw.com](https://excalidraw.com) to edit.</sub>
 
 | Store | Production | Local run |
 |---|---|---|
@@ -44,35 +28,9 @@
 
 ## Query processing flow
 
-```
-User question (English or Arabic)
-  │
-  ▼
-POST /api/query/stream  (SSE)   or   POST /api/query  (single JSON)
-  │
-  ├─ Translate Arabic → English (if needed)
-  ├─ SessionManager loads / creates MultiTurnConversation
-  │
-  ▼
-Orchestrator LLM (Gemini) with tool calling
-  │
-  ├─► get_data_from_sql
-  │     ├─ PromptBuilder: base.md + SQL dialect rules + domain prompt (metadata.db)
-  │     ├─ Code-gen LLM → structured JSON { intent, sql_query, python }
-  │     ├─ Execute SQL + Python against the data warehouse
-  │     └─ Return table rows or a PNG chart  (retried once on failure)
-  │
-  ├─► get_context_from_rag
-  │     └─ Read the domain's context file (e.g. core/finance_operations.txt)
-  │
-  └─► Plain text answer
-  │
-  ├─ Translate back to Arabic (if input was Arabic)
-  ├─ Persist message, generated SQL and timing tree
-  ▼
-SSE events: start → status… → delta… → part… → sql → done
-(/api/query returns the collected parts as one JSON response)
-```
+![Query processing flow: the user question goes to POST /api/query/stream, is translated to English if needed, the session is loaded, and the Gemini orchestrator picks a tool. get_data_from_sql builds the prompt, calls the code-gen LLM for intent, SQL and Python, and runs it read-only on the warehouse, retrying once on error. get_context_from_rag reads the domain glossary and the LLM writes the answer. Simple messages are answered directly. All paths are translated back to Arabic if needed, saved, and streamed to the UI as SSE events.](images/query-flow.svg)
+
+<sub>Source: [`images/query-flow.excalidraw`](images/query-flow.excalidraw) — open at [excalidraw.com](https://excalidraw.com) to edit, then export as SVG with "Embed scene" off.</sub>
 
 ### Streaming
 
@@ -117,6 +75,15 @@ The provider is selected with `PROVIDER` (`google` by default). It also supports
 | `prompts/finance.md` | Finance domain prompt: schema, joins, masking rules, channel mapping, few-shot SQL |
 | `core/prompts/prompt_builder.py` | Combines base prompt, dialect rules and domain prompt |
 | `core/prompts/prompt_cache.py` | Reads domain prompts from `metadata.db` by tag or module |
+
+### Chart theme — `core/plot_theme.py`
+
+Charts are rendered server-side with matplotlib in the UI's palette.
+
+- `apply_plot_theme()` resets matplotlib and applies the theme before every generated snippet runs. Fonts, the UI accent blue, recessive gridlines, a left-aligned title and axis padding apply even when the generated code sets no styling.
+- Generated code gets `THEME` (accent, `inflow` blue and `outflow` red for credits/debits, 8-color categorical `series`, sequential `cmap`) and the rupee formatters `inr_compact()` / `inr_axis()` (₹1.48 Cr, ₹9.57 L).
+- The categorical order was checked with a colorblind-safety validator (worst adjacent ΔE 9.1). Three slots fall below 3:1 contrast on white, so the prompt requires value labels on marks.
+- To re-brand, change `THEME`. `prompts/base.md` only refers to the variable names.
 
 ### Domains and metadata — `config.py`, `utils/git_metadata_loader.py`
 

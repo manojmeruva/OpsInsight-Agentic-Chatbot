@@ -24,6 +24,7 @@ from core.database import get_connection
 from core.prompts.prompt_builder import build_prompt
 from .llm_factory import get_codegen_llm
 from .models import Cgen
+from .plot_theme import THEME, apply_plot_theme, inr_axis, inr_compact  # visible to generated code
 
 
 SRC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -88,9 +89,10 @@ def execute_dynamic_code(my_output: list[Cgen]) -> tuple[list, list]:
     import pymysql
 
     children_timings = []
+    apply_plot_theme()   # charts match the UI palette regardless of generated styling
     try:
         with get_connection() as connection:
-            local_vars = {"connection": connection}
+            local_vars = {"connection": connection, "THEME": THEME, "inr_compact": inr_compact, "inr_axis": inr_axis}
             code_output     = my_output[0].code
             code_block_dict = code_output.model_dump()
             sql_block       = f'''sql_query="""{code_block_dict['sql_query']}"""\n{code_block_dict['python']}'''

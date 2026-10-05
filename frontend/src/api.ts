@@ -109,6 +109,21 @@ export const api = {
     }));
   },
 
+  speechToText: async (wav: Blob): Promise<string> => {
+    const form = new FormData();
+    form.append("file", wav, "recording.wav");
+    form.append("translate", "false"); // chat handles Arabic → English itself
+    const res = await fetch(`${API_BASE}/speech-to-text`, { method: "POST", body: form });
+    const data = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      transcription?: string;
+      error?: string;
+      detail?: { error?: string };
+    };
+    if (!res.ok || !data.success) throw new Error(data.error || data.detail?.error || `${res.status} ${res.statusText}`);
+    return (data.transcription ?? "").trim();
+  },
+
   deleteSession: (sessionId: string) =>
     request<{ message?: string }>("/deletesession", { method: "DELETE", headers: { "session-id": sessionId } }),
 
